@@ -36,12 +36,22 @@ import kotlin.reflect.full.findAnnotation
 interface AutoDao<T : Any> {
   val type: KClass<T>
 
+  fun getWhere(where: String, vararg args: Any?): T {
+    return findWhere(where, args.toList())
+      ?: throw ResqlException(404, "No record returned where $where $args")
+  }
+
   /**
    * Find the first match to any arbitrary WHERE clause, e.g. "column = 123"
    */
   fun findWhere(where: String, vararg args: Any?): T? {
     val sql = "SELECT * FROM ${inferTable()} WHERE $where"
     return Resql.find(type, sql, args.toList())
+  }
+
+  fun listWhere(where: String, vararg args: Any?): List<T> {
+    val sql = "SELECT * FROM ${inferTable()} WHERE $where"
+    return Resql.list(type, sql, args.toList())
   }
 
   /**

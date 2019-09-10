@@ -41,6 +41,15 @@ abstract class Resql {
     return find(type, sql, args) ?: throw ResqlException(404, "No record returned. $sql $args")
   }
 
+  fun <T> get(sql: String, vararg args: Any?, mapper: (Row) -> T): T {
+    return get(sql, args.toList(), mapper)
+  }
+
+  fun <T> get(sql: String, args: List<Any?>, mapper: (Row) -> T): T {
+    return find(sql, args, mapper = mapper)
+      ?: throw ResqlException(404, "Nothing was returned.D id you mean to call .single? $sql $args")
+  }
+
   inline fun <reified T : Any> find(sql: String, vararg args: Any?): T? {
     return find(sql, args.toList())
   }
@@ -54,28 +63,33 @@ abstract class Resql {
   }
 
   fun <T : Any> find(type: KClass<T>, sql: String, args: List<Any?>): T? {
-    return using(sessionOf(dataSource)) { sess: Session ->
-      sess.run(Query(sql, args).map { reflectivelyMap(it, type) }.asSingle)
-    }
+    return find(sql, args) { reflectivelyMap(it, type) }
   }
 
-  fun <T> one(sql: String, vararg args: Any?, mapper: (Row) -> T): T {
-    return one(sql, args.toList(), mapper)
+  fun <T> find(sql: String, vararg args: Any?, mapper: (Row) -> T): T? {
+    return find(sql, args.toList(), mapper)
   }
 
-  fun <T> one(sql: String, args: List<Any?>, mapper: (Row) -> T): T {
-    return single(sql, args, mapper = mapper)
-      ?: throw ResqlException(404, "Nothing was returned.D id you mean to call .single? $sql $args")
-  }
-
-  fun <T> single(sql: String, vararg args: Any?, mapper: (Row) -> T): T? {
-    return single(sql, args.toList(), mapper)
-  }
-
-  fun <T> single(sql: String, args: List<Any?>, mapper: (Row) -> T): T? {
+  fun <T> find(sql: String, args: List<Any?>, mapper: (Row) -> T): T? {
     return using(sessionOf(dataSource)) { sess: Session ->
       sess.run(Query(sql, args).map { mapper(it) }.asSingle)
     }
+  }
+
+  inline fun <reified T : Any> list(sql: String, vararg args: Any?): List<T> {
+    return list(sql, args.toList())
+  }
+
+  inline fun <reified T : Any> list(sql: String, args: List<Any?>): List<T> {
+    return list(T::class, sql, args)
+  }
+
+  fun <T : Any> list(type: KClass<T>, sql: String, vararg args: Any?): List<T> {
+    return list(type, sql, args.toList())
+  }
+
+  fun <T : Any> list(type: KClass<T>, sql: String, args: List<Any?>): List<T> {
+    return list(sql, args) { reflectivelyMap(it, type) }
   }
 
   fun <T> list(sql: String, vararg args: Any?, mapper: (Row) -> T): List<T> {
