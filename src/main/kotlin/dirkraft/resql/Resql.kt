@@ -20,105 +20,105 @@ import kotlin.reflect.full.primaryConstructor
  * @see AutoDao
  */
 abstract class Resql {
-    // note to self: don't put annotation processing in here.
-    // This part just does the reflection. The SQL builders/helpers are part of the AutoDao.
+  // note to self: don't put annotation processing in here.
+  // This part just does the reflection. The SQL builders/helpers are part of the AutoDao.
 
-    open val dataSource get() = HikariCP.dataSource()
+  open val dataSource get() = HikariCP.dataSource()
 
-    inline fun <reified T : Any> get(sql: String, vararg args: Any?): T {
-        return get(sql, args.toList())
+  inline fun <reified T : Any> get(sql: String, vararg args: Any?): T {
+    return get(sql, args.toList())
+  }
+
+  inline fun <reified T : Any> get(sql: String, args: List<Any?>): T {
+    return get(T::class, sql, args)
+  }
+
+  fun <T : Any> get(type: KClass<T>, sql: String, vararg args: Any?): T {
+    return get(type, sql, args.toList())
+  }
+
+  fun <T : Any> get(type: KClass<T>, sql: String, args: List<Any?>): T {
+    return find(type, sql, args) ?: throw ResqlException(404, "No record returned. $sql $args")
+  }
+
+  inline fun <reified T : Any> find(sql: String, vararg args: Any?): T? {
+    return find(sql, args.toList())
+  }
+
+  inline fun <reified T : Any> find(sql: String, args: List<Any?>): T? {
+    return find(T::class, sql, args)
+  }
+
+  fun <T : Any> find(type: KClass<T>, sql: String, vararg args: Any?): T? {
+    return find(type, sql, args.toList())
+  }
+
+  fun <T : Any> find(type: KClass<T>, sql: String, args: List<Any?>): T? {
+    return using(sessionOf(dataSource)) { sess: Session ->
+      sess.run(Query(sql, args).map { reflectivelyMap(it, type) }.asSingle)
     }
+  }
 
-    inline fun <reified T : Any> get(sql: String, args: List<Any?>): T {
-        return get(T::class, sql, args)
+  fun <T> one(sql: String, vararg args: Any?, mapper: (Row) -> T): T {
+    return one(sql, args.toList(), mapper)
+  }
+
+  fun <T> one(sql: String, args: List<Any?>, mapper: (Row) -> T): T {
+    return single(sql, args, mapper = mapper)
+      ?: throw ResqlException(404, "Nothing was returned.D id you mean to call .single? $sql $args")
+  }
+
+  fun <T> single(sql: String, vararg args: Any?, mapper: (Row) -> T): T? {
+    return single(sql, args.toList(), mapper)
+  }
+
+  fun <T> single(sql: String, args: List<Any?>, mapper: (Row) -> T): T? {
+    return using(sessionOf(dataSource)) { sess: Session ->
+      sess.run(Query(sql, args).map { mapper(it) }.asSingle)
     }
+  }
 
-    fun <T : Any> get(type: KClass<T>, sql: String, vararg args: Any?): T {
-        return get(type, sql, args.toList())
+  fun <T> list(sql: String, vararg args: Any?, mapper: (Row) -> T): List<T> {
+    return list(sql, args.toList(), mapper)
+  }
+
+  fun <T> list(sql: String, args: List<Any?>, mapper: (Row) -> T): List<T> {
+    return using(sessionOf(dataSource)) { sess: Session ->
+      sess.run(Query(sql, args).map { mapper(it) }.asList)
     }
+  }
 
-    fun <T : Any> get(type: KClass<T>, sql: String, args: List<Any?>): T {
-        return find(type, sql, args) ?: throw ResqlException(404, "No record returned. $sql $args")
+  fun exec(sql: String, vararg args: Any?) {
+    exec(sql, args.toList())
+  }
+
+  fun exec(sql: String, args: List<Any?>) {
+    using(sessionOf(dataSource)) { sess: Session ->
+      sess.run(Query(sql, args).asExecute)
     }
+  }
 
-    inline fun <reified T : Any> find(sql: String, vararg args: Any?): T? {
-        return find(sql, args.toList())
-    }
+  open fun <T : Any> reflectivelyMap(row: Row, type: KClass<T>): T {
+    val cons: KFunction<T> = type.primaryConstructor!!
 
-    inline fun <reified T : Any> find(sql: String, args: List<Any?>): T? {
-        return find(T::class, sql, args)
-    }
+    val consArgs: Array<Any?> = cons.parameters.map { consParam: KParameter ->
+      val colName = ResqlStrings.camel2Snake(consParam.name!!)
 
-    fun <T : Any> find(type: KClass<T>, sql: String, vararg args: Any?): T? {
-        return find(type, sql, args.toList())
-    }
+      @Suppress("IMPLICIT_CAST_TO_ANY")
+      when (val classish: KClassifier = consParam.type.classifier!!) {
+        Boolean::class -> row.boolean(colName) // no booleanOrNull variant?
+        Int::class -> row.intOrNull(colName)
+        Long::class -> row.longOrNull(colName)
+        String::class -> row.stringOrNull(colName)
+        Instant::class -> row.instantOrNull(colName)
+        else -> throw ResqlException(500, "Don't know how to map into param type $classish")
+      }
+    }.toTypedArray()
 
-    fun <T : Any> find(type: KClass<T>, sql: String, args: List<Any?>): T? {
-        return using(sessionOf(dataSource)) { sess: Session ->
-            sess.run(Query(sql, args).map { reflectivelyMap(it, type) }.asSingle)
-        }
-    }
+    return cons.call(*consArgs)
+  }
 
-    fun <T> one(sql: String, vararg args: Any?, mapper: (Row) -> T): T {
-        return one(sql, args.toList(), mapper)
-    }
-
-    fun <T> one(sql: String, args: List<Any?>, mapper: (Row) -> T): T {
-        return single(sql, args, mapper = mapper)
-                ?: throw ResqlException(404, "Nothing was returned.D id you mean to call .single? $sql $args")
-    }
-
-    fun <T> single(sql: String, vararg args: Any?, mapper: (Row) -> T): T? {
-        return single(sql, args.toList(), mapper)
-    }
-
-    fun <T> single(sql: String, args: List<Any?>, mapper: (Row) -> T): T? {
-        return using(sessionOf(dataSource)) { sess: Session ->
-            sess.run(Query(sql, args).map { mapper(it) }.asSingle)
-        }
-    }
-
-    fun <T> list(sql: String, vararg args: Any?, mapper: (Row) -> T): List<T> {
-        return list(sql, args.toList(), mapper)
-    }
-
-    fun <T> list(sql: String, args: List<Any?>, mapper: (Row) -> T): List<T> {
-        return using(sessionOf(dataSource)) { sess: Session ->
-            sess.run(Query(sql, args).map { mapper(it) }.asList)
-        }
-    }
-
-    fun exec(sql: String, vararg args: Any?) {
-        exec(sql, args.toList())
-    }
-
-    fun exec(sql: String, args: List<Any?>) {
-        using(sessionOf(dataSource)) { sess: Session ->
-            sess.run(Query(sql, args).asExecute)
-        }
-    }
-
-    open fun <T : Any> reflectivelyMap(row: Row, type: KClass<T>): T {
-        val cons: KFunction<T> = type.primaryConstructor!!
-
-        val consArgs: Array<Any?> = cons.parameters.map { consParam: KParameter ->
-            val colName = ResqlStrings.camel2Snake(consParam.name!!)
-
-            @Suppress("IMPLICIT_CAST_TO_ANY")
-            when (val classish: KClassifier = consParam.type.classifier!!) {
-                Boolean::class -> row.boolean(colName) // no booleanOrNull variant?
-                Int::class -> row.intOrNull(colName)
-                Long::class -> row.longOrNull(colName)
-                String::class -> row.stringOrNull(colName)
-                Instant::class -> row.instantOrNull(colName)
-                else -> throw ResqlException(500, "Don't know how to map into param type $classish")
-            }
-        }.toTypedArray()
-
-        return cons.call(*consArgs)
-    }
-
-    companion object : Resql()
+  companion object : Resql()
 }
 
 /**
