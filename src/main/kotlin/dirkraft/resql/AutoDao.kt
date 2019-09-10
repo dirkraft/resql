@@ -36,6 +36,12 @@ import kotlin.reflect.full.findAnnotation
 interface AutoDao<T : Any> {
   val type: KClass<T>
 
+  fun get(id: Any): T {
+    val pkCol = getAnnotatedProperty<PrimaryKey>(type).name
+    val sql = "SELECT * FROM ${inferTable()} WHERE $pkCol = ?"
+    return Resql.get(type, sql, id)
+  }
+
   fun getWhere(where: String, vararg args: Any?): T {
     return findWhere(where, args.toList())
       ?: throw ResqlException(404, "No record returned where $where $args")
@@ -154,15 +160,17 @@ interface AutoDao<T : Any> {
      * @return (col name, col value)
      */
     private inline fun <reified T : Annotation> getAnnotatedProperty(row: Any): Pair<String, Any?> {
-      // No composite PKs supported for now.
-      val pkProp: KProperty1<out Any, Any?> = row::class.declaredMemberProperties.find { prop ->
-        prop.findAnnotation<T>() != null
-      }
-        ?: throw ResqlException(500, "Failed to find @${T::class.simpleName} on ${row::class.simpleName}")
-
+      val pkProp: KProperty1<out Any, Any?> = getAnnotatedProperty<T>(row::class)
       val column: String = ResqlStrings.camel2Snake(pkProp.name)
       val value: Any? = pkProp.getter.call(row)
       return Pair(column, value)
+    }
+
+    private inline fun <reified T : Annotation> getAnnotatedProperty(type: KClass<*>): KProperty1<out Any, Any?> {
+      // No composite PKs supported for now.
+      return type.declaredMemberProperties
+        .find { prop -> prop.findAnnotation<T>() != null }
+        ?: throw ResqlException(500, "Failed to find @${T::class.simpleName} on ${type.simpleName}")
     }
 
     /**
