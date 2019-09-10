@@ -37,7 +37,7 @@ interface AutoDao<T : Any> {
   val type: KClass<T>
 
   fun get(id: Any): T {
-    val pkCol = getAnnotatedProperty<PrimaryKey>(type).name
+    val pkCol = ResqlStrings.camel2Snake(getAnnotatedProperty<PrimaryKey>(type).name)
     val sql = "SELECT * FROM ${inferTable()} WHERE $pkCol = ?"
     return Resql.get(type, sql, id)
   }
