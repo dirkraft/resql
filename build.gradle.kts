@@ -3,6 +3,7 @@ version = "1.0-SNAPSHOT"
 
 plugins {
     kotlin("jvm") version "1.3.50"
+    maven // for jitpack dependency
 }
 
 repositories {
