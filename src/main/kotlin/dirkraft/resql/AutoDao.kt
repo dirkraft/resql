@@ -79,6 +79,8 @@ interface AutoDao<T : Any> {
 
   companion object {
 
+    private val onChangeListeners: MutableMap<KClass<*>, MutableList<(Any) -> Unit>> = mutableMapOf()
+
     /**
      * Create an AutoDao on data class T, typically as a mixin into another dao class.
      *
@@ -88,6 +90,27 @@ interface AutoDao<T : Any> {
      */
     inline fun <reified T : Any> self(): AutoDao<T> = object : AutoDao<T> {
       override val type = T::class
+    }
+
+    inline fun <reified T : Any> onChange(noinline thunk: (T) -> Unit) {
+      return onChange(T::class, thunk)
+    }
+
+    fun <T : Any> onChange(type: KClass<T>, thunk: (T) -> Unit) {
+      var listeners: MutableList<(Any) -> Unit>? = onChangeListeners[type]
+      if (listeners == null) {
+        listeners = mutableListOf()
+        onChangeListeners[type] = listeners
+      }
+      @Suppress("UNCHECKED_CAST")
+      listeners.add(thunk as (Any) -> Unit)
+    }
+
+    private fun <T : Any> fireChange(row: T) {
+      val listeners = onChangeListeners.getOrDefault(row::class, emptyList<(Any) -> Unit>())
+      for (listener in listeners) {
+        listener(row)
+      }
     }
 
     /**
@@ -101,7 +124,9 @@ interface AutoDao<T : Any> {
         INSERT INTO ${inferTable(row::class)}(${colNames.joinToString()}) 
         VALUES (${placeholders(colNames.size)}) 
         RETURNING *"""
-      return Resql.get(row::class, sql, colValues)
+      val result = Resql.get(row::class, sql, colValues)
+      fireChange(result)
+      return result
     }
 
     /**
@@ -123,7 +148,9 @@ interface AutoDao<T : Any> {
         WHERE $pkCol = ?
         RETURNING *
       """
-      return Resql.get(row::class, sql, colValues + pkVal)
+      val result = Resql.get(row::class, sql, colValues + pkVal)
+      fireChange(result)
+      return result
     }
 
     /**
@@ -146,7 +173,9 @@ interface AutoDao<T : Any> {
         DO UPDATE SET $setClauses
         RETURNING *
       """
-      return Resql.get(row::class, sql, colValues)
+      val result = Resql.get(row::class, sql, colValues)
+      fireChange(result)
+      return result
     }
 
     /**
