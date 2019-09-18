@@ -36,9 +36,11 @@ import kotlin.reflect.full.findAnnotation
 interface AutoDao<T : Any> {
   val type: KClass<T>
 
+  fun inferTable(): String = Companion.inferTable(type)
+
   fun get(id: Any): T {
     val pkCol = ResqlStrings.camel2Snake(getAnnotatedProperty<PrimaryKey>(type).name)
-    val sql = "SELECT * FROM ${inferTable(type)} WHERE $pkCol = ?"
+    val sql = "SELECT * FROM ${inferTable()} WHERE $pkCol = ?"
     return Resql.get(type, sql, id)
   }
 
@@ -51,12 +53,12 @@ interface AutoDao<T : Any> {
    * Find the first match to any arbitrary WHERE clause, e.g. "column = 123"
    */
   fun findWhere(where: String, vararg args: Any?): T? {
-    val sql = "SELECT * FROM ${inferTable(type)} WHERE $where"
+    val sql = "SELECT * FROM ${inferTable()} WHERE $where"
     return Resql.find(type, sql, args.toList())
   }
 
   fun listWhere(where: String, vararg args: Any?): List<T> {
-    val sql = "SELECT * FROM ${inferTable(type)} WHERE $where"
+    val sql = "SELECT * FROM ${inferTable()} WHERE $where"
     return Resql.list(type, sql, args.toList())
   }
 
