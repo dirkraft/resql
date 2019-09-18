@@ -38,7 +38,7 @@ interface AutoDao<T : Any> {
 
   fun get(id: Any): T {
     val pkCol = ResqlStrings.camel2Snake(getAnnotatedProperty<PrimaryKey>(type).name)
-    val sql = "SELECT * FROM ${inferTable()} WHERE $pkCol = ?"
+    val sql = "SELECT * FROM ${inferTable(type)} WHERE $pkCol = ?"
     return Resql.get(type, sql, id)
   }
 
@@ -51,12 +51,12 @@ interface AutoDao<T : Any> {
    * Find the first match to any arbitrary WHERE clause, e.g. "column = 123"
    */
   fun findWhere(where: String, vararg args: Any?): T? {
-    val sql = "SELECT * FROM ${inferTable()} WHERE $where"
+    val sql = "SELECT * FROM ${inferTable(type)} WHERE $where"
     return Resql.find(type, sql, args.toList())
   }
 
   fun listWhere(where: String, vararg args: Any?): List<T> {
-    val sql = "SELECT * FROM ${inferTable()} WHERE $where"
+    val sql = "SELECT * FROM ${inferTable(type)} WHERE $where"
     return Resql.list(type, sql, args.toList())
   }
 
@@ -75,7 +75,10 @@ interface AutoDao<T : Any> {
    */
   fun upsert(row: T): T = Companion.upsert(row)
 
-  private fun inferTable(): String = Companion.inferTable(type)
+  /**
+   * @see Companion.onChange
+   */
+  fun onChange(thunk: (T) -> Unit) = Companion.onChange(type, thunk)
 
   companion object {
 
@@ -90,27 +93,6 @@ interface AutoDao<T : Any> {
      */
     inline fun <reified T : Any> self(): AutoDao<T> = object : AutoDao<T> {
       override val type = T::class
-    }
-
-    inline fun <reified T : Any> onChange(noinline thunk: (T) -> Unit) {
-      return onChange(T::class, thunk)
-    }
-
-    fun <T : Any> onChange(type: KClass<T>, thunk: (T) -> Unit) {
-      var listeners: MutableList<(Any) -> Unit>? = onChangeListeners[type]
-      if (listeners == null) {
-        listeners = mutableListOf()
-        onChangeListeners[type] = listeners
-      }
-      @Suppress("UNCHECKED_CAST")
-      listeners.add(thunk as (Any) -> Unit)
-    }
-
-    private fun <T : Any> fireChange(row: T) {
-      val listeners = onChangeListeners.getOrDefault(row::class, emptyList<(Any) -> Unit>())
-      for (listener in listeners) {
-        listener(row)
-      }
     }
 
     /**
@@ -178,6 +160,20 @@ interface AutoDao<T : Any> {
       return result
     }
 
+    inline fun <reified T : Any> onChange(noinline thunk: (T) -> Unit) {
+      return onChange(T::class, thunk)
+    }
+
+    fun <T : Any> onChange(type: KClass<T>, thunk: (T) -> Unit) {
+      var listeners: MutableList<(Any) -> Unit>? = onChangeListeners[type]
+      if (listeners == null) {
+        listeners = mutableListOf()
+        onChangeListeners[type] = listeners
+      }
+      @Suppress("UNCHECKED_CAST")
+      listeners.add(thunk as (Any) -> Unit)
+    }
+
     /**
      * snake_case the data class's simple name as the corresponding table name
      */
@@ -226,6 +222,13 @@ interface AutoDao<T : Any> {
      */
     private fun placeholders(num: Int): String {
       return "?, ".repeat(num - 1) + "?"
+    }
+
+    private fun <T : Any> fireChange(row: T) {
+      val listeners = onChangeListeners.getOrDefault(row::class, emptyList<(Any) -> Unit>())
+      for (listener in listeners) {
+        listener(row)
+      }
     }
   }
 
