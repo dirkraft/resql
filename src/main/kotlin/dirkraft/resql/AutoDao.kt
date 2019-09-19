@@ -58,7 +58,10 @@ interface AutoDao<T : Any> {
   }
 
   fun listWhere(where: String, vararg args: Any?): List<T> {
-    val sql = "SELECT * FROM ${inferTable()} WHERE $where"
+    return list("SELECT * FROM ${inferTable()} WHERE $where", *args)
+  }
+
+  fun list(sql: String, vararg args: Any?): List<T> {
     return Resql.list(type, sql, args.toList())
   }
 
