@@ -1,5 +1,6 @@
 package dirkraft.resql
 
+import org.intellij.lang.annotations.Language
 import kotlin.reflect.KClass
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.declaredMemberProperties
@@ -44,7 +45,7 @@ interface AutoDao<T : Any> {
     return Resql.get(type, sql, id)
   }
 
-  fun getWhere(where: String, vararg args: Any?): T {
+  fun getWhere(@Language("SQL", prefix = "SELECT * FROM _ ") where: String, vararg args: Any?): T {
     return findWhere(where, args.toList())
       ?: throw ResqlException(404, "No record returned where $where $args")
   }
@@ -52,16 +53,16 @@ interface AutoDao<T : Any> {
   /**
    * Find the first match to any arbitrary WHERE clause, e.g. "column = 123"
    */
-  fun findWhere(where: String, vararg args: Any?): T? {
+  fun findWhere(@Language("SQL", prefix = "SELECT * FROM _ ") where: String, vararg args: Any?): T? {
     val sql = "SELECT * FROM ${inferTable()} WHERE $where"
     return Resql.find(type, sql, args.toList())
   }
 
-  fun listWhere(where: String, vararg args: Any?): List<T> {
+  fun listWhere(@Language("SQL", prefix = "SELECT * FROM _ ") where: String, vararg args: Any?): List<T> {
     return list("SELECT * FROM ${inferTable()} WHERE $where", *args)
   }
 
-  fun list(sql: String, vararg args: Any?): List<T> {
+  fun list(@Language("SQL") sql: String, vararg args: Any?): List<T> {
     return Resql.list(type, sql, args.toList())
   }
 

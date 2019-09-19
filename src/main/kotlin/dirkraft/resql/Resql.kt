@@ -1,6 +1,7 @@
 package dirkraft.resql
 
 import kotliquery.*
+import org.intellij.lang.annotations.Language
 import java.time.Instant
 import kotlin.reflect.KClass
 import kotlin.reflect.KClassifier
@@ -25,88 +26,88 @@ abstract class Resql {
 
   open val dataSource get() = HikariCP.dataSource()
 
-  inline fun <reified T : Any> get(sql: String, vararg args: Any?): T {
+  inline fun <reified T : Any> get(@Language("SQL") sql: String, vararg args: Any?): T {
     return get(sql, args.toList())
   }
 
-  inline fun <reified T : Any> get(sql: String, args: List<Any?>): T {
+  inline fun <reified T : Any> get(@Language("SQL") sql: String, args: List<Any?>): T {
     return get(T::class, sql, args)
   }
 
-  fun <T : Any> get(type: KClass<T>, sql: String, vararg args: Any?): T {
+  fun <T : Any> get(type: KClass<T>, @Language("SQL") sql: String, vararg args: Any?): T {
     return get(type, sql, args.toList())
   }
 
-  fun <T : Any> get(type: KClass<T>, sql: String, args: List<Any?>): T {
+  fun <T : Any> get(type: KClass<T>, @Language("SQL") sql: String, args: List<Any?>): T {
     return find(type, sql, args) ?: throw ResqlException(404, "No record returned. $sql $args")
   }
 
-  fun <T> get(sql: String, vararg args: Any?, mapper: (Row) -> T): T {
+  fun <T> get(@Language("SQL") sql: String, vararg args: Any?, mapper: (Row) -> T): T {
     return get(sql, args.toList(), mapper)
   }
 
-  fun <T> get(sql: String, args: List<Any?>, mapper: (Row) -> T): T {
+  fun <T> get(@Language("SQL") sql: String, args: List<Any?>, mapper: (Row) -> T): T {
     return find(sql, args, mapper = mapper)
       ?: throw ResqlException(404, "Nothing was returned.D id you mean to call .single? $sql $args")
   }
 
-  inline fun <reified T : Any> find(sql: String, vararg args: Any?): T? {
+  inline fun <reified T : Any> find(@Language("SQL") sql: String, vararg args: Any?): T? {
     return find(sql, args.toList())
   }
 
-  inline fun <reified T : Any> find(sql: String, args: List<Any?>): T? {
+  inline fun <reified T : Any> find(@Language("SQL") sql: String, args: List<Any?>): T? {
     return find(T::class, sql, args)
   }
 
-  fun <T : Any> find(type: KClass<T>, sql: String, vararg args: Any?): T? {
+  fun <T : Any> find(type: KClass<T>, @Language("SQL") sql: String, vararg args: Any?): T? {
     return find(type, sql, args.toList())
   }
 
-  fun <T : Any> find(type: KClass<T>, sql: String, args: List<Any?>): T? {
+  fun <T : Any> find(type: KClass<T>, @Language("SQL") sql: String, args: List<Any?>): T? {
     return find(sql, args) { reflectivelyMap(it, type) }
   }
 
-  fun <T> find(sql: String, vararg args: Any?, mapper: (Row) -> T): T? {
+  fun <T> find(@Language("SQL") sql: String, vararg args: Any?, mapper: (Row) -> T): T? {
     return find(sql, args.toList(), mapper)
   }
 
-  fun <T> find(sql: String, args: List<Any?>, mapper: (Row) -> T): T? {
+  fun <T> find(@Language("SQL") sql: String, args: List<Any?>, mapper: (Row) -> T): T? {
     return using(sessionOf(dataSource)) { sess: Session ->
       sess.run(Query(sql, args).map { mapper(it) }.asSingle)
     }
   }
 
-  inline fun <reified T : Any> list(sql: String, vararg args: Any?): List<T> {
+  inline fun <reified T : Any> list(@Language("SQL") sql: String, vararg args: Any?): List<T> {
     return list(sql, args.toList())
   }
 
-  inline fun <reified T : Any> list(sql: String, args: List<Any?>): List<T> {
+  inline fun <reified T : Any> list(@Language("SQL") sql: String, args: List<Any?>): List<T> {
     return list(T::class, sql, args)
   }
 
-  fun <T : Any> list(type: KClass<T>, sql: String, vararg args: Any?): List<T> {
+  fun <T : Any> list(type: KClass<T>, @Language("SQL") sql: String, vararg args: Any?): List<T> {
     return list(type, sql, args.toList())
   }
 
-  fun <T : Any> list(type: KClass<T>, sql: String, args: List<Any?>): List<T> {
+  fun <T : Any> list(type: KClass<T>, @Language("SQL") sql: String, args: List<Any?>): List<T> {
     return list(sql, args) { reflectivelyMap(it, type) }
   }
 
-  fun <T> list(sql: String, vararg args: Any?, mapper: (Row) -> T): List<T> {
+  fun <T> list(@Language("SQL") sql: String, vararg args: Any?, mapper: (Row) -> T): List<T> {
     return list(sql, args.toList(), mapper)
   }
 
-  fun <T> list(sql: String, args: List<Any?>, mapper: (Row) -> T): List<T> {
+  fun <T> list(@Language("SQL") sql: String, args: List<Any?>, mapper: (Row) -> T): List<T> {
     return using(sessionOf(dataSource)) { sess: Session ->
       sess.run(Query(sql, args).map { mapper(it) }.asList)
     }
   }
 
-  fun exec(sql: String, vararg args: Any?) {
+  fun exec(@Language("SQL") sql: String, vararg args: Any?) {
     exec(sql, args.toList())
   }
 
-  fun exec(sql: String, args: List<Any?>) {
+  fun exec(@Language("SQL") sql: String, args: List<Any?>) {
     using(sessionOf(dataSource)) { sess: Session ->
       sess.run(Query(sql, args).asExecute)
     }
