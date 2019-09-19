@@ -45,7 +45,7 @@ interface AutoDao<T : Any> {
     return Resql.get(type, sql, id)
   }
 
-  fun getWhere(@Language("SQL", prefix = "SELECT * FROM _ ") where: String, vararg args: Any?): T {
+  fun getWhere(@Language("SQL", prefix = "SELECT * FROM _ WHERE ") where: String, vararg args: Any?): T {
     return findWhere(where, args.toList())
       ?: throw ResqlException(404, "No record returned where $where $args")
   }
@@ -53,12 +53,12 @@ interface AutoDao<T : Any> {
   /**
    * Find the first match to any arbitrary WHERE clause, e.g. "column = 123"
    */
-  fun findWhere(@Language("SQL", prefix = "SELECT * FROM _ ") where: String, vararg args: Any?): T? {
+  fun findWhere(@Language("SQL", prefix = "SELECT * FROM _ WHERE ") where: String, vararg args: Any?): T? {
     val sql = "SELECT * FROM ${inferTable()} WHERE $where"
     return Resql.find(type, sql, args.toList())
   }
 
-  fun listWhere(@Language("SQL", prefix = "SELECT * FROM _ ") where: String, vararg args: Any?): List<T> {
+  fun listWhere(@Language("SQL", prefix = "SELECT * FROM _ WHERE ") where: String, vararg args: Any?): List<T> {
     return list("SELECT * FROM ${inferTable()} WHERE $where", *args)
   }
 
