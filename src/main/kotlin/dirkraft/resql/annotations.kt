@@ -1,5 +1,7 @@
 package dirkraft.resql
 
+import kotlin.reflect.KClass
+
 /**
  * Used by AutoDao.update.
  */
@@ -9,7 +11,17 @@ annotation class PrimaryKey
 
 /**
  * Used by AutoDao.upsert.
+ *
+ * When placed on class, composite key cols must be given.
+ * When placed on property, col inferred (do not use composite).
  */
-@Target(AnnotationTarget.PROPERTY)
+@Target(AnnotationTarget.CLASS, AnnotationTarget.PROPERTY)
 @Retention(AnnotationRetention.RUNTIME)
-annotation class UniqueKey
+annotation class UniqueKey(vararg val columns: String)
+
+/**
+ * Used by Resql.readCollection.
+ */
+@Target(AnnotationTarget.VALUE_PARAMETER)
+@Retention(AnnotationRetention.RUNTIME)
+annotation class InnerEnum(val type: KClass<out Enum<*>>)

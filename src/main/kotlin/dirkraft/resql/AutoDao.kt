@@ -40,7 +40,8 @@ interface AutoDao<T : Any> {
   fun inferTable(): String = Companion.inferTable(type)
 
   fun get(id: Any): T {
-    val pkCol = ResqlStrings.camel2Snake(getAnnotatedProperty<PrimaryKey>(type).name)
+    val pkCol = ResqlStrings.camel2Snake(findAnnotatedProperty<PrimaryKey>(type)?.name
+      ?: throw ResqlException(400, "Failed to find @PrimaryKey on ${type.simpleName}."))
     val sql = "SELECT * FROM ${inferTable()} WHERE $pkCol = ?"
     return Resql.get(type, sql, id)
   }
@@ -80,6 +81,11 @@ interface AutoDao<T : Any> {
    * @see Companion.upsert
    */
   fun upsert(row: T): T = Companion.upsert(row)
+
+  /**
+   * @see Companion.delete
+   */
+  fun delete(id: Any) = Companion.delete(type, id)
 
   /**
    * @see Companion.onChange
@@ -124,7 +130,8 @@ interface AutoDao<T : Any> {
      * @return the updated row
      */
     fun <T : Any> update(row: T): T {
-      val (pkCol: String, pkVal: Any?) = getAnnotatedProperty<PrimaryKey>(row)
+      val (pkCol: String, pkVal: Any?) = findAnnotatedProperty<PrimaryKey>(row)
+        ?: throw ResqlException(400, "Failed to find @PrimaryKey on ${row::class.simpleName}")
       require(pkVal != null) { "@PrimaryKey cannot be null." }
 
       val (colNames: List<String>, colValues: List<Any>) = reflectToCols(row, excludeCol = pkCol)
@@ -145,25 +152,57 @@ interface AutoDao<T : Any> {
      * Upsert this row reflectively by way of INSERT ON CONFLICT DO UPDATE.
      * Null values are excluded from the SQL.
      *
-     * Requires one property/column to be annotated @UniqueKey.
+     * Requires one @UniqueKey
      *
      * @return the upserted row
      */
     fun <T : Any> upsert(row: T): T {
-      val (uniqCol, _) = getAnnotatedProperty<UniqueKey>(row)
       val (colNames: List<String>, colValues: List<Any>) = reflectToCols(row)
       val setClauses = colNames.joinToString { colName -> "$colName = EXCLUDED.$colName" }
+
+      // Composite unique key on class
+      val uniqKey = row::class.findAnnotation<UniqueKey>()
+      val uniqCols = if (uniqKey != null) {
+        if (uniqKey.columns.isEmpty()) {
+          throw ResqlException(400, "@UniqueKey on ${row::class.simpleName} must specify columns.")
+        }
+        uniqKey.columns.map { ResqlStrings.camel2Snake(it) }
+
+      } else {
+        // Single col unique key on property
+        val (uniqCol, _) = findAnnotatedProperty<UniqueKey>(row)
+          ?: throw ResqlException(400, "Failed to find @UniqueKey on ${row::class.simpleName}")
+        listOf(uniqCol)
+      }
 
       val sql = """
         INSERT INTO ${inferTable(row::class)}(${colNames.joinToString()})
         VALUES (${placeholders(colNames.size)})
-        ON CONFLICT ($uniqCol)
+        ON CONFLICT (${uniqCols.joinToString()})
         DO UPDATE SET $setClauses
         RETURNING *
       """
+
       val result = Resql.get(row::class, sql, colValues)
       fireChange(result)
       return result
+    }
+
+    fun <T : Any> delete(row: T) {
+      val (pkCol: String, pkVal: Any?) = findAnnotatedProperty<PrimaryKey>(row)
+        ?: throw ResqlException(400, "Failed to find @PrimaryKey on ${row::class.simpleName}")
+
+      val sql = "DELETE FROM ${inferTable(row::class)} WHERE $pkCol = ?"
+      Resql.exec(sql, pkVal)
+    }
+
+    fun delete(type: KClass<*>, id: Any) {
+      val pkProp: KProperty1<out Any, Any?> = findAnnotatedProperty<PrimaryKey>(type)
+        ?: throw ResqlException(400, "Failed to find @PrimaryKey on ${type.simpleName}")
+      val pkCol: String = ResqlStrings.camel2Snake(pkProp.name)
+
+      val sql = "DELETE FROM ${inferTable(type)} WHERE $pkCol = ?"
+      Resql.exec(sql, id)
     }
 
     inline fun <reified T : Any> onChange(noinline thunk: (T) -> Unit) {
@@ -190,18 +229,15 @@ interface AutoDao<T : Any> {
     /**
      * @return (col name, col value)
      */
-    private inline fun <reified T : Annotation> getAnnotatedProperty(row: Any): Pair<String, Any?> {
-      val pkProp: KProperty1<out Any, Any?> = getAnnotatedProperty<T>(row::class)
+    private inline fun <reified T : Annotation> findAnnotatedProperty(row: Any): Pair<String, Any?>? {
+      val pkProp: KProperty1<out Any, Any?> = findAnnotatedProperty<T>(row::class) ?: return null
       val column: String = ResqlStrings.camel2Snake(pkProp.name)
       val value: Any? = pkProp.getter.call(row)
       return Pair(column, value)
     }
 
-    private inline fun <reified T : Annotation> getAnnotatedProperty(type: KClass<*>): KProperty1<out Any, Any?> {
-      // No composite PKs supported for now.
-      return type.declaredMemberProperties
-        .find { prop -> prop.findAnnotation<T>() != null }
-        ?: throw ResqlException(500, "Failed to find @${T::class.simpleName} on ${type.simpleName}")
+    private inline fun <reified T : Annotation> findAnnotatedProperty(type: KClass<*>): KProperty1<out Any, Any?>? {
+      return type.declaredMemberProperties.find { prop -> prop.findAnnotation<T>() != null }
     }
 
     /**

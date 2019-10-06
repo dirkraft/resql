@@ -7,6 +7,7 @@ import kotlin.reflect.KClass
 import kotlin.reflect.KClassifier
 import kotlin.reflect.KFunction
 import kotlin.reflect.KParameter
+import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
 
 /**
@@ -73,7 +74,7 @@ abstract class Resql {
 
   fun <T> find(@Language("SQL") sql: String, args: List<Any?>, mapper: (Row) -> T): T? {
     return using(sessionOf(dataSource)) { sess: Session ->
-      sess.run(Query(sql, args).map { mapper(it) }.asSingle)
+      sess.run(mapQuery(sql, args, sess).map { mapper(it) }.asSingle)
     }
   }
 
@@ -99,7 +100,7 @@ abstract class Resql {
 
   fun <T> list(@Language("SQL") sql: String, args: List<Any?>, mapper: (Row) -> T): List<T> {
     return using(sessionOf(dataSource)) { sess: Session ->
-      sess.run(Query(sql, args).map { mapper(it) }.asList)
+      sess.run(mapQuery(sql, args, sess).map { mapper(it) }.asList)
     }
   }
 
@@ -109,8 +110,20 @@ abstract class Resql {
 
   fun exec(@Language("SQL") sql: String, args: List<Any?>) {
     using(sessionOf(dataSource)) { sess: Session ->
-      sess.run(Query(sql, args).asExecute)
+      sess.run(mapQuery(sql, args, sess).asExecute)
     }
+  }
+
+  open fun mapQuery(sql: String, args: List<Any?>, sess: Session): Query {
+    val transformed = args.map { arg ->
+      when (arg) {
+        // Kotliquery wants List<Any> but should be List<Any?>
+        is Collection<*> -> sess.connection.underlying.createArrayOf("TEXT", arg.toTypedArray())
+        is Iterable<*> -> sess.connection.underlying.createArrayOf("TEXT", arg.toList().toTypedArray())
+        else -> arg
+      }
+    }
+    return Query(sql, transformed)
   }
 
   open fun <T : Any> reflectivelyMap(row: Row, type: KClass<T>): T {
@@ -121,16 +134,33 @@ abstract class Resql {
 
       @Suppress("IMPLICIT_CAST_TO_ANY")
       when (val classish: KClassifier = consParam.type.classifier!!) {
-        Boolean::class -> row.boolean(colName) // no booleanOrNull variant?
-        Int::class -> row.intOrNull(colName)
-        Long::class -> row.longOrNull(colName)
         String::class -> row.stringOrNull(colName)
+        Long::class -> row.longOrNull(colName)
+        Int::class -> row.intOrNull(colName)
+        Boolean::class -> row.boolean(colName) // no booleanOrNull variant?
         Instant::class -> row.instantOrNull(colName)
+        MutableList::class -> readCollection(consParam, row.arrayOrNull(colName))?.toMutableList()
+        List::class -> readCollection(consParam, row.arrayOrNull(colName))?.toList()
+        MutableSet::class -> readCollection(consParam, row.arrayOrNull(colName))?.toMutableSet()
+        Set::class -> readCollection(consParam, row.arrayOrNull(colName))?.toSet()
         else -> throw ResqlException(500, "Don't know how to map into param type $classish")
       }
     }.toTypedArray()
 
     return cons.call(*consArgs)
+  }
+
+  open fun readCollection(consParam: KParameter, arr: Array<Any?>?): Iterable<Any?>? {
+    val enumType = consParam.findAnnotation<InnerEnum>()?.type
+    return if (enumType == null || arr == null) {
+      arr?.asIterable()
+    } else {
+      arr.asIterable().map { el: Any? ->
+        el?.let {
+          enumType.java.enumConstants.find { it.name == el }
+        }
+      }
+    }
   }
 
   companion object : Resql()
