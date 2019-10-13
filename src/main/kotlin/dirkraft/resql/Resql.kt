@@ -2,6 +2,7 @@ package dirkraft.resql
 
 import kotliquery.*
 import org.intellij.lang.annotations.Language
+import java.time.Duration
 import java.time.Instant
 import kotlin.reflect.KClass
 import kotlin.reflect.KClassifier
@@ -117,6 +118,8 @@ abstract class Resql {
   open fun mapQuery(sql: String, args: List<Any?>, sess: Session): Query {
     val transformed = args.map { arg ->
       when (arg) {
+        // Works best with casting '?::interval' - not 'interval ?'
+        is Duration -> arg.toString()
         // Kotliquery wants List<Any> but should be List<Any?>
         is Collection<*> -> sess.connection.underlying.createArrayOf("TEXT", arg.toTypedArray())
         is Iterable<*> -> sess.connection.underlying.createArrayOf("TEXT", arg.toList().toTypedArray())
