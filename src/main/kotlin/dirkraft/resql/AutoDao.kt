@@ -77,6 +77,10 @@ interface AutoDao<T : Any> {
    */
   fun update(row: T): T = Companion.update(row)
 
+  fun update(@Language("SQL", prefix = "UPDATE _ ") setWhere: String, vararg args: Any?) {
+    Companion.update(type, setWhere, *args)
+  }
+
   /**
    * @see Companion.upsert
    */
@@ -146,6 +150,11 @@ interface AutoDao<T : Any> {
       val result = Resql.get(row::class, sql, colValues + pkVal)
       fireChange(result)
       return result
+    }
+
+    fun update(type: KClass<*>, setWhere: String, vararg args: Any?) {
+      val sql = "UPDATE ${inferTable(type)} $setWhere"
+      Resql.exec(sql, *args)
     }
 
     /**
