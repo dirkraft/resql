@@ -6,6 +6,7 @@ import org.postgresql.util.PGInterval
 import org.postgresql.util.PGobject
 import java.time.Duration
 import java.time.Instant
+import javax.sql.DataSource
 import kotlin.math.floor
 import kotlin.reflect.KClass
 import kotlin.reflect.KClassifier
@@ -29,7 +30,7 @@ abstract class Resql {
   // note to self: don't put annotation processing in here.
   // This part just does the reflection. The SQL builders/helpers are part of the AutoDao.
 
-  open val dataSource get() = HikariCP.dataSource()
+  abstract val dataSource: DataSource
 
   inline fun <reified T : Any> get(@Language("SQL") sql: String, vararg args: Any?): T {
     return get(sql, args.toList())
@@ -155,7 +156,7 @@ abstract class Resql {
             .plusHours(ival.hours.toLong())
             .plusMinutes(ival.minutes.toLong())
             .plusSeconds(seconds.toLong())
-            .plusNanos(((ival.seconds - seconds) * 10E9).toLong())
+            .plusNanos(((ival.seconds - seconds) * 10e9).toLong())
         }
         MutableList::class -> readCollection(consParam, row.arrayOrNull(colName))?.toMutableList()
         List::class -> readCollection(consParam, row.arrayOrNull(colName))?.toList()
@@ -181,7 +182,26 @@ abstract class Resql {
     }
   }
 
-  companion object : Resql()
+  companion object : Resql() {
+    private var realDataSource: DataSource? = null
+
+    override val dataSource: DataSource
+      get() {
+        var ds = realDataSource
+        if (ds == null) {
+          synchronized(this) {
+            ds = HikariCP.dataSource()
+            realDataSource = ds
+          }
+        }
+        return ds!!
+      }
+
+    fun initDataSource(ds: DataSource) {
+      require(this.realDataSource == null)
+      this.realDataSource = ds
+    }
+  }
 }
 
 /**
