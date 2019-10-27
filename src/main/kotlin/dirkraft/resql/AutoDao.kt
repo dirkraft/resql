@@ -63,6 +63,10 @@ interface AutoDao<T : Any> {
     return list("SELECT * FROM ${inferTable()} WHERE $where", *args)
   }
 
+  fun list(): List<T> {
+    return Resql.list(type, "SELECT * FROM ${inferTable()}")
+  }
+
   fun list(@Language("SQL") sql: String, vararg args: Any?): List<T> {
     return Resql.list(type, sql, args.toList())
   }

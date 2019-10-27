@@ -1,6 +1,6 @@
 package dirkraft.resql
 
-import org.junit.Assert
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Duration
 import java.time.Instant
@@ -11,7 +11,7 @@ class ResqlTest : TestInstance() {
     Resql.exec("CREATE TABLE java_time_duration (ts TIMESTAMPTZ)")
 
     Resql.exec(
-      "INSERT INTO java_time_duration VALUES (now() - ?::INTERVAL)",
+      "INSERT INTO java_time_duration VALUES (now() - ?)",
       Duration.ofHours(3)
     )
 
@@ -19,6 +19,6 @@ class ResqlTest : TestInstance() {
       it.instant("ts")
     }
 
-    Assert.assertTrue(Instant.now().minus(Duration.ofHours(2)) > inDb)
+    assertTrue(Instant.now().minus(Duration.ofHours(2)) > inDb)
   }
 }

@@ -2,8 +2,11 @@ package dirkraft.resql
 
 import kotliquery.*
 import org.intellij.lang.annotations.Language
+import org.postgresql.util.PGInterval
+import org.postgresql.util.PGobject
 import java.time.Duration
 import java.time.Instant
+import kotlin.math.floor
 import kotlin.reflect.KClass
 import kotlin.reflect.KClassifier
 import kotlin.reflect.KFunction
@@ -118,8 +121,10 @@ abstract class Resql {
   open fun mapQuery(sql: String, args: List<Any?>, sess: Session): Query {
     val transformed = args.map { arg ->
       when (arg) {
-        // Works best with casting '?::interval' - not 'interval ?'
-        is Duration -> arg.toString()
+        is Duration -> PGobject().apply {
+          type = "interval"
+          value = arg.toString()
+        }
         // Kotliquery wants List<Any> but should be List<Any?>
         is Collection<*> -> sess.connection.underlying.createArrayOf("TEXT", arg.toTypedArray())
         is Iterable<*> -> sess.connection.underlying.createArrayOf("TEXT", arg.toList().toTypedArray())
@@ -142,6 +147,16 @@ abstract class Resql {
         Int::class -> row.intOrNull(colName)
         Boolean::class -> row.boolean(colName) // no booleanOrNull variant?
         Instant::class -> row.instantOrNull(colName)
+        Duration::class -> {
+          val ival = (row.any(colName) as PGInterval)
+          val seconds = floor(ival.seconds)
+          Duration.ZERO
+            .plusDays(ival.days.toLong())
+            .plusHours(ival.hours.toLong())
+            .plusMinutes(ival.minutes.toLong())
+            .plusSeconds(seconds.toLong())
+            .plusNanos(((ival.seconds - seconds) * 10E9).toLong())
+        }
         MutableList::class -> readCollection(consParam, row.arrayOrNull(colName))?.toMutableList()
         List::class -> readCollection(consParam, row.arrayOrNull(colName))?.toList()
         MutableSet::class -> readCollection(consParam, row.arrayOrNull(colName))?.toMutableSet()
