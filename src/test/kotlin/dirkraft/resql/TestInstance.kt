@@ -55,6 +55,8 @@ open class TestInstance {
     }
 
     fun cleanup() {
+      // Shutting down hikari and doing a graceful pg shutdown doesn't work and sprays output
+      // even worse. Just be mean.
       println("Cleaning up.")
       pgProc.destroyForcibly().waitFor(10, TimeUnit.SECONDS)
       tmpDir.deleteRecursively()

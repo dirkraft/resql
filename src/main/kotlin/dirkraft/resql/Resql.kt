@@ -123,7 +123,7 @@ abstract class Resql {
     val transformed = args.map { arg ->
       when (arg) {
         is Duration -> PGobject().apply {
-          type = "interval"
+          type = "INTERVAL"
           value = arg.toString()
         }
         // Kotliquery wants List<Any> but should be List<Any?>
