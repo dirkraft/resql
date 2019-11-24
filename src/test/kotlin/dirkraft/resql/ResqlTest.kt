@@ -60,4 +60,14 @@ class ResqlTest : TestInstance() {
     // https://www.postgresql.org/docs/10/runtime-config-compatible.html#RUNTIME-CONFIG-COMPATIBLE-CLIENTS
     assertEquals(0, doCount("where data = ?", null))
   }
+
+  @Test
+  fun testMapChar() {
+    Resql.exec("CREATE TABLE char_test (c CHAR)")
+    Resql.exec("INSERT INTO char_test VALUES ('z')")
+    data class CharTest(val c: Char)
+
+    val row: CharTest = Resql.get("SELECT * FROM char_test")
+    assertEquals(CharTest('z'), row)
+  }
 }

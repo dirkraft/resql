@@ -144,6 +144,7 @@ abstract class Resql {
       @Suppress("IMPLICIT_CAST_TO_ANY")
       when (val classish: KClassifier = consParam.type.classifier!!) {
         String::class -> row.stringOrNull(colName)
+        Char::class -> row.stringOrNull(colName)?.toCharArray()?.single()
         Long::class -> row.longOrNull(colName)
         Int::class -> row.intOrNull(colName)
         Boolean::class -> row.boolean(colName) // no booleanOrNull variant?

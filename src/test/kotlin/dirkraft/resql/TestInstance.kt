@@ -19,12 +19,12 @@ open class TestInstance {
       tmpDir = Files.createTempDirectory("resql-test").toFile()
       println("Test db instance: ${tmpDir.absolutePath}")
       try {
-        ProcessBuilder().inheritIO().command(
+        ProcessBuilder().command(
           "/usr/lib/postgresql/11/bin/initdb",
           "-D", tmpDir.absolutePath
         ).start().waitFor(1, TimeUnit.MINUTES)
 
-        pgProc = ProcessBuilder().inheritIO().command(
+        pgProc = ProcessBuilder().command(
           "/usr/lib/postgresql/11/bin/postgres",
           "-k", tmpDir.absolutePath,
           "-D", tmpDir.absolutePath
