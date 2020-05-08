@@ -189,7 +189,7 @@ interface AutoDao<T : Any> {
       }
 
       val sql = """
-        INSERT INTO ${inferTable(row::class)}(${colNames.joinToString()})
+        INSERT INTO "${inferTable(row::class)}"(${colNames.joinToString()})
         VALUES (${placeholders(colNames.size)})
         ON CONFLICT (${uniqCols.joinToString()})
         DO UPDATE SET $setClauses
