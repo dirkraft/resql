@@ -189,7 +189,7 @@ interface AutoDao<T : Any> {
       }
 
       val sql = """
-        INSERT INTO "${inferTable(row::class)}"(${colNames.joinToString()})
+        INSERT INTO ${inferTable(row::class)}(${colNames.joinToString()})
         VALUES (${placeholders(colNames.size)})
         ON CONFLICT (${uniqCols.joinToString()})
         DO UPDATE SET $setClauses
@@ -233,10 +233,10 @@ interface AutoDao<T : Any> {
     }
 
     /**
-     * snake_case the data class's simple name as the corresponding table name
+     * snake_case the data class's simple name as the corresponding table name and "quote" it
      */
     private fun inferTable(type: KClass<out Any>): String {
-      return ResqlStrings.camel2Snake(type.simpleName!!)
+      return '"' + ResqlStrings.camel2Snake(type.simpleName!!) + '"'
     }
 
     /**

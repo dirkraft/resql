@@ -1,5 +1,6 @@
 package dirkraft.resql
 
+import com.fasterxml.jackson.databind.JsonNode
 import kotliquery.*
 import org.intellij.lang.annotations.Language
 import org.postgresql.util.PGInterval
@@ -126,6 +127,10 @@ abstract class Resql {
           type = "INTERVAL"
           value = arg.toString()
         }
+        is JsonNode -> PGobject().apply {
+          type = "JSON"
+          value = mapper.writeValueAsString(arg)
+        }
         // Kotliquery wants List<Any> but should be List<Any?>
         is Collection<*> -> sess.connection.underlying.createArrayOf("TEXT", arg.toTypedArray())
         is Iterable<*> -> sess.connection.underlying.createArrayOf("TEXT", arg.toList().toTypedArray())
@@ -163,6 +168,7 @@ abstract class Resql {
         List::class -> readCollection(consParam, row.arrayOrNull(colName))?.toList()
         MutableSet::class -> readCollection(consParam, row.arrayOrNull(colName))?.toMutableSet()
         Set::class -> readCollection(consParam, row.arrayOrNull(colName))?.toSet()
+        JsonNode::class -> row.stringOrNull(colName)?.let(mapper::readTree)
         else -> throw ResqlException(500, "Don't know how to map into param type $classish")
       }
     }.toTypedArray()
