@@ -25,3 +25,7 @@ annotation class UniqueKey(vararg val columns: String)
 @Target(AnnotationTarget.VALUE_PARAMETER)
 @Retention(AnnotationRetention.RUNTIME)
 annotation class InnerEnum(val type: KClass<out Enum<*>>)
+
+@Target(AnnotationTarget.PROPERTY)
+@Retention(AnnotationRetention.RUNTIME)
+annotation class NotAColumn

@@ -5,6 +5,7 @@ import kotlin.reflect.KClass
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.findAnnotation
+import kotlin.reflect.full.hasAnnotation
 
 /**
  * Warning!: This is horribly insecure because of all kinds of SQL building/generation
@@ -262,11 +263,13 @@ interface AutoDao<T : Any> {
       val colNames = mutableListOf<String>()
       val colValues = mutableListOf<Any>()
       row::class.declaredMemberProperties.forEach { prop ->
-        val colName = ResqlStrings.camel2Snake(prop.name)
-        val colVal = prop.getter.call(row)
-        if (colVal != null && colName != excludeCol) {
-          colNames += colName
-          colValues += colVal
+        prop.findAnnotation<NotAColumn>() ?: run {
+          val colName = ResqlStrings.camel2Snake(prop.name)
+          val colVal = prop.getter.call(row)
+          if (colVal != null && colName != excludeCol) {
+            colNames += colName
+            colValues += colVal
+          }
         }
       }
       return Pair(colNames, colValues)
