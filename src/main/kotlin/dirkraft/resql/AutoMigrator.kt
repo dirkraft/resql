@@ -34,6 +34,7 @@ class AutoMigrator(private val prompting: Boolean = true) {
           name = colName,
           type = when (val typeName = colMeta.getString("type_name")) {
             "varchar" -> "varchar(${colMeta.getInt("column_size")})"
+            "int8" -> "bigint"
             else -> typeName
           },
           nullable = !pks.contains(colName) && colMeta.getBoolean("nullable"),
