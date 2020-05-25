@@ -4,7 +4,7 @@ group = "com.github.dirkraft"
 version = "1.0-SNAPSHOT"
 
 plugins {
-  kotlin("jvm") version "1.3.50"
+  kotlin("jvm") version "1.3.72"
   maven // for jitpack dependency
   `maven-publish`
 }

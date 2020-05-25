@@ -5,7 +5,6 @@ import kotlin.reflect.KClass
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.findAnnotation
-import kotlin.reflect.full.hasAnnotation
 
 /**
  * Warning!: This is horribly insecure because of all kinds of SQL building/generation
@@ -38,7 +37,7 @@ import kotlin.reflect.full.hasAnnotation
 interface AutoDao<T : Any> {
   val type: KClass<T>
 
-  fun inferTable(): String = Companion.inferTable(type)
+  fun inferTable(): String = inferTable(type)
 
   fun get(id: Any): T {
     val pkCol = ResqlStrings.camel2Snake(findAnnotatedProperty<PrimaryKey>(type)?.name
@@ -122,7 +121,9 @@ interface AutoDao<T : Any> {
      * @return the inserted row
      */
     fun <T : Any> insert(row: T): T {
-      val (colNames: List<String>, colValues: List<Any>) = reflectToCols(row)
+      val cols = reflectToColVals(row, includeNulls = false)
+      val colNames = cols.map { it.name }
+      val colValues = cols.map { it.value }
       val sql = """
         INSERT INTO ${inferTable(row::class)}(${colNames.joinToString()}) 
         VALUES (${placeholders(colNames.size)}) 
@@ -143,7 +144,9 @@ interface AutoDao<T : Any> {
         ?: throw ResqlException(400, "Failed to find @PrimaryKey on ${row::class.simpleName}")
       require(pkVal != null) { "@PrimaryKey cannot be null." }
 
-      val (colNames: List<String>, colValues: List<Any>) = reflectToCols(row, excludeCol = pkCol)
+      val cols = reflectToColVals(row, includeNulls = false, excludeCol = pkCol)
+      val colNames = cols.map { it.name }
+      val colValues = cols.map { it.value }
       val setClauses = colNames.joinToString { colName -> "$colName = ?" }
 
       val sql = """
@@ -171,7 +174,9 @@ interface AutoDao<T : Any> {
      * @return the upserted row
      */
     fun <T : Any> upsert(row: T): T {
-      val (colNames: List<String>, colValues: List<Any>) = reflectToCols(row)
+      val cols = reflectToColVals(row, includeNulls = false)
+      val colNames = cols.map { it.name }
+      val colValues = cols.map { it.value }
       val setClauses = colNames.joinToString { colName -> "$colName = EXCLUDED.$colName" }
 
       // Composite unique key on class
@@ -234,13 +239,6 @@ interface AutoDao<T : Any> {
     }
 
     /**
-     * snake_case the data class's simple name as the corresponding table name and "quote" it
-     */
-    private fun inferTable(type: KClass<out Any>): String {
-      return '"' + ResqlStrings.camel2Snake(type.simpleName!!) + '"'
-    }
-
-    /**
      * @return (col name, col value)
      */
     private inline fun <reified T : Annotation> findAnnotatedProperty(row: Any): Pair<String, Any?>? {
@@ -252,27 +250,6 @@ interface AutoDao<T : Any> {
 
     private inline fun <reified T : Annotation> findAnnotatedProperty(type: KClass<*>): KProperty1<out Any, Any?>? {
       return type.declaredMemberProperties.find { prop -> prop.findAnnotation<T>() != null }
-    }
-
-    /**
-     * Filters out null values.
-     *
-     * @return (col names, col values)
-     */
-    private fun reflectToCols(row: Any, excludeCol: String? = null): Pair<List<String>, List<Any>> {
-      val colNames = mutableListOf<String>()
-      val colValues = mutableListOf<Any>()
-      row::class.declaredMemberProperties.forEach { prop ->
-        prop.findAnnotation<NotAColumn>() ?: run {
-          val colName = ResqlStrings.camel2Snake(prop.name)
-          val colVal = prop.getter.call(row)
-          if (colVal != null && colName != excludeCol) {
-            colNames += colName
-            colValues += colVal
-          }
-        }
-      }
-      return Pair(colNames, colValues)
     }
 
     /**

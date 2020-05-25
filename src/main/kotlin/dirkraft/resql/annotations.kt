@@ -26,6 +26,16 @@ annotation class UniqueKey(vararg val columns: String)
 @Retention(AnnotationRetention.RUNTIME)
 annotation class InnerEnum(val type: KClass<out Enum<*>>)
 
+/**
+ * Ignore a property in all reflection.
+ */
 @Target(AnnotationTarget.PROPERTY)
 @Retention(AnnotationRetention.RUNTIME)
 annotation class NotAColumn
+
+/**
+ * Auto-Migrator, defines varchar size.
+ */
+@Target(AnnotationTarget.PROPERTY)
+@Retention(AnnotationRetention.RUNTIME)
+annotation class Varchar(val limit: Int)
