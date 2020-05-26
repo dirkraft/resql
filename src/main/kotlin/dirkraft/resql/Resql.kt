@@ -5,6 +5,8 @@ import kotliquery.*
 import org.intellij.lang.annotations.Language
 import org.postgresql.util.PGInterval
 import org.postgresql.util.PGobject
+import java.lang.reflect.Proxy
+import java.sql.Connection
 import java.time.Duration
 import java.time.Instant
 import javax.sql.DataSource
@@ -27,11 +29,9 @@ import kotlin.reflect.full.primaryConstructor
  *
  * @see AutoDao
  */
-abstract class Resql {
+open class Resql {
   // note to self: don't put annotation processing in here.
   // This part just does the reflection. The SQL builders/helpers are part of the AutoDao.
-
-  abstract val dataSource: DataSource
 
   inline fun <reified T : Any> get(@Language("SQL") sql: String, vararg args: Any?): T {
     return get(sql, args.toList())
@@ -189,24 +189,54 @@ abstract class Resql {
     }
   }
 
+  // So HikariCP default data source needs to be set before constructing the companion object.
   companion object : Resql() {
-    private var realDataSource: DataSource? = null
 
-    override val dataSource: DataSource
-      get() {
-        var ds = realDataSource
-        if (ds == null) {
-          synchronized(this) {
-            ds = HikariCP.dataSource()
-            realDataSource = ds
-          }
+    private val tlResql = ThreadLocal<DataSource>()
+
+    internal val dataSource: DataSource get() = tlResql.get() ?: HikariCP.dataSource()
+
+    /**
+     * Prepare a thread-local Resql bound to a single connection for transactional sequences.
+     */
+    fun <T> trx(thunk: () -> T): T {
+      val classLoader = Resql::class.java.classLoader
+
+      val dataSource = HikariCP.dataSource()
+      val conn = dataSource.connection
+      conn.autoCommit = false
+
+      val noCloseConn: Connection = Proxy.newProxyInstance(
+        classLoader,
+        arrayOf(Connection::class.java)
+      ) { _, method, args ->
+        if (method.name != "close") {
+          method.invoke(conn, *args)
+        } else {
+          null
         }
-        return ds!!
-      }
+      } as Connection
 
-    fun initDataSource(ds: DataSource) {
-      require(this.realDataSource == null)
-      this.realDataSource = ds
+      val oneConnDataSource: DataSource = Proxy.newProxyInstance(
+        classLoader,
+        arrayOf(DataSource::class.java)
+      ) { _, method, args ->
+        if (method.name == "getConnection") {
+          noCloseConn
+        } else {
+          method.invoke(dataSource, *args)
+        }
+      } as DataSource
+
+      tlResql.set(oneConnDataSource)
+      try {
+        val result = thunk()
+        conn.commit()
+        return result
+      } finally {
+        conn.rollback()
+        tlResql.remove()
+      }
     }
   }
 }
