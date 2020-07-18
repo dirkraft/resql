@@ -24,7 +24,6 @@ dependencies {
   implementation(kotlin("reflect"))
   implementation("com.github.seratch:kotliquery:1.3.0")
   implementation("com.zaxxer:HikariCP:3.2.0")
-  implementation("org.postgresql:postgresql:42.2.6")
   implementation("org.jetbrains:annotations:16.0.2")
   implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.9.9")
   testImplementation("junit:junit:4.12")
