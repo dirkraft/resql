@@ -136,7 +136,7 @@ class AutoMigrator(private val prompting: Boolean = true) {
       val inBoth = existingCols.keys.intersect(wantedCols.keys).map { k ->
         existingCols.getValue(k) to wantedCols.getValue(k)
       }
-      inBoth.filter { (l, r) -> l.type != r.type }.mapTo(statements) { (_, r) ->
+      inBoth.filter { (l, r) -> l.type.toLowerCase() != r.type.toLowerCase()}.mapTo(statements) { (_, r) ->
         "alter table ${existingTable.quotedName} alter ${r.name} type ${r.type};"
       }
       inBoth.filter { (l, r) -> l.nullable != r.nullable }.mapTo(statements) { (_, r) ->
