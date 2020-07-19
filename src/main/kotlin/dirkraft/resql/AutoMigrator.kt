@@ -85,7 +85,7 @@ class AutoMigrator(private val prompting: Boolean = true) {
       Long::class -> pkAnnot?.let { "bigserial" } ?: "bigint"
       Int::class -> pkAnnot?.let { "serial" } ?: "int"
       Boolean::class -> "bool"
-      Instant::class -> TODO()
+      Instant::class -> "timestamptz"
       Duration::class -> TODO()
       MutableList::class -> TODO()
       List::class -> TODO()
@@ -127,7 +127,7 @@ class AutoMigrator(private val prompting: Boolean = true) {
 
       // removed (but auto-mig will never do it)
       val removedCols: Set<String> = existingCols.keys - wantedCols.keys
-      removedCols.mapTo(statements) { "-- alter table ${existingTable.quotedName} drop ${it};" }
+      removedCols.mapTo(statements) { "alter table ${existingTable.quotedName} drop ${it};" }
 
       val addedCols: Collection<ColSql> =
         wantedCols.filterKeys { !existingCols.containsKey(it) }.values
