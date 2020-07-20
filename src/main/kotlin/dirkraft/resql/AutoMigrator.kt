@@ -92,7 +92,13 @@ class AutoMigrator(private val prompting: Boolean = true) {
       MutableSet::class -> TODO()
       Set::class -> TODO()
       JsonNode::class -> "jsonb"
-      else -> throw ResqlException(500, "Don't know how to map into param type $classish")
+      else -> {
+        if ((classish as KClass<*>).java.isEnum) {
+          "text"
+        } else {
+          throw ResqlException(500, "Don't know how to map into param type $classish")
+        }
+      }
     }
     return ColSql(
       name = col.name,
@@ -136,7 +142,7 @@ class AutoMigrator(private val prompting: Boolean = true) {
       val inBoth = existingCols.keys.intersect(wantedCols.keys).map { k ->
         existingCols.getValue(k) to wantedCols.getValue(k)
       }
-      inBoth.filter { (l, r) -> l.type.toLowerCase() != r.type.toLowerCase()}.mapTo(statements) { (_, r) ->
+      inBoth.filter { (l, r) -> l.type.toLowerCase() != r.type.toLowerCase() }.mapTo(statements) { (_, r) ->
         "alter table ${existingTable.quotedName} alter ${r.name} type ${r.type};"
       }
       inBoth.filter { (l, r) -> l.nullable != r.nullable }.mapTo(statements) { (_, r) ->

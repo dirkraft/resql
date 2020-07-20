@@ -131,6 +131,7 @@ open class Resql {
           type = "JSON"
           value = mapper.writeValueAsString(arg)
         }
+        is Enum<*> -> arg.name
         // Kotliquery wants List<Any> but should be List<Any?>
         is Collection<*> -> sess.connection.underlying.createArrayOf("TEXT", arg.toTypedArray())
         is Iterable<*> -> sess.connection.underlying.createArrayOf("TEXT", arg.toList().toTypedArray())
@@ -169,13 +170,29 @@ open class Resql {
         MutableSet::class -> readCollection(consParam, row.arrayOrNull(colName))?.toMutableSet()
         Set::class -> readCollection(consParam, row.arrayOrNull(colName))?.toSet()
         JsonNode::class -> row.stringOrNull(colName)?.let(mapper::readTree)
-        else -> throw ResqlException(500, "Don't know how to map into param type $classish")
+        else -> {
+          val javaClass = (classish as KClass<*>).java
+
+          if (javaClass.isEnum) {
+            row.stringOrNull(colName)?.let { dbVal ->
+              @Suppress("UNCHECKED_CAST")
+              (javaClass.enumConstants as Array<Enum<*>>).find { enum ->
+                enum.name == dbVal
+              } ?: throw ResqlException(500, "Failed to parse $dbVal into $javaClass")
+            }
+
+          } else {
+            throw ResqlException(500, "Don't know how to map into param type $classish")
+          }
+        }
       }
     }.toTypedArray()
 
     return cons.call(*consArgs)
   }
-
+  fun <T : kotlin.Enum<T>> safeValueOf(type: String, klass: Class<T>): T? {
+    return java.lang.Enum.valueOf(klass, type)
+  }
   open fun readCollection(consParam: KParameter, arr: Array<Any?>?): Iterable<Any?>? {
     val enumType = consParam.findAnnotation<InnerEnum>()?.type
     return if (enumType == null || arr == null) {
