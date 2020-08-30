@@ -46,28 +46,18 @@ interface AutoDao<T : Any> {
     return Resql.get(type, sql, id)
   }
 
-  fun getWhere(@Language("SQL", prefix = "SELECT * FROM _ WHERE ") where: String, vararg args: Any?): T {
-    return findWhere(where, args.toList())
-      ?: throw ResqlException(404, "No record returned where $where $args")
+  fun get(@Language("SQL", prefix = "SELECT * FROM _ ") tail: String, vararg args: Any?): T {
+    return find(tail, args.toList())
+      ?: throw ResqlException(404, "No record returned where $tail $args")
   }
 
-  /**
-   * Find the first match to any arbitrary WHERE clause, e.g. "column = 123"
-   */
-  fun findWhere(@Language("SQL", prefix = "SELECT * FROM _ WHERE ") where: String, vararg args: Any?): T? {
-    val sql = "SELECT * FROM ${inferTable()} WHERE $where"
+  fun find(@Language("SQL", prefix = "SELECT * FROM _ ") tail: String, vararg args: Any?): T? {
+    val sql = "SELECT * FROM ${inferTable()} $tail"
     return Resql.find(type, sql, args.toList())
   }
 
-  fun listWhere(@Language("SQL", prefix = "SELECT * FROM _ WHERE ") where: String, vararg args: Any?): List<T> {
-    return list("SELECT * FROM ${inferTable()} WHERE $where", *args)
-  }
-
-  fun list(): List<T> {
-    return Resql.list(type, "SELECT * FROM ${inferTable()}")
-  }
-
-  fun list(@Language("SQL") sql: String, vararg args: Any?): List<T> {
+  fun list(@Language("SQL", prefix = "SELECT * FROM _ ") tail: String = "", vararg args: Any?): List<T> {
+    val sql = "SELECT * FROM ${inferTable()} $tail"
     return Resql.list(type, sql, args.toList())
   }
 
